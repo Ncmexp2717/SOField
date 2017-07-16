@@ -20,6 +20,10 @@
 #define MAX_LINE_SIZE 256
 #define fp_bsize         1048576     /* buffer size for setvbuf */
 
+/* Added by N. Yamaguchi ***/
+#define LATEST_VERSION 1
+/* ***/
+
 #ifdef nompi
 #include "mimic_mpi.h"
 #else
@@ -43,23 +47,28 @@ void read_scfout(char *filename_wf, int Print_datFile)
 
 #ifndef SOField
   if ((fp = fopen(argv[1],"r")) != NULL){
-#else
-  if ((fp = fopen(filename_wf,"r")) != NULL){
-#endif
 
 #ifdef xt3
     setvbuf(fp,buf,_IOFBF,fp_bsize);  /* setvbuf */
 #endif
 
-#ifndef SOField
     printf("\nRead the scfout file (%s)\n",argv[1]);fflush(stdout);
     Input(fp);
-#else
-    Input(fp, Print_datFile);
-#endif
 
     fclose(fp);
   }
+#else
+  if ((fp = fopen(filename_wf,"r")) != NULL){
+
+#ifdef xt3
+    setvbuf(fp,buf,_IOFBF,fp_bsize);  /* setvbuf */
+#endif
+
+    Input(fp, Print_datFile);
+
+    fclose(fp);
+  }
+#endif
   else {
 #ifndef SOField
     printf("Failure of reading the scfout file (%s).\n",argv[1]);fflush(stdout);
@@ -89,20 +98,39 @@ void Input( FILE *fp, int Print_datFile)
 
   /****************************************************
     atomnum
-    spinP_switch 
+    spinP_switch
+    version (added by N. Yamaguchi)
    ****************************************************/
 
   fread(i_vec,sizeof(int),6,fp);
   atomnum      = i_vec[0];
-  SpinP_switch = i_vec[1];
+
+  /* Disabled by N. Yamaguchi
+   * SpinP_switch = i_vec[1];
+   */
+
   Catomnum =     i_vec[2];
   Latomnum =     i_vec[3];
   Ratomnum =     i_vec[4];
   TCpyCell =     i_vec[5];
 
-  if (SpinP_switch<0 || SpinP_switch>3) {
+  /* Added by N. Yamaguchi ***/
+  if (i_vec[1]<0 || i_vec[1]>(LATEST_VERSION)*4+3) {
     puts("Error: Mismatch of the Endians");fflush(stdout);
     MPI_Abort(MPI_COMM_WORLD, 1);
+  } else {
+    SpinP_switch=i_vec[1]%4;
+    version=i_vec[1]/4;
+  }
+  /* ***/
+
+  /****************************************************
+    order_max (added by N. Yamaguchi for HWC)
+   ****************************************************/
+
+  if (version){
+    fread(i_vec, sizeof(int), 1, fp);
+    order_max=i_vec[0];
   }
 
   /****************************************************
@@ -337,10 +365,10 @@ void Input( FILE *fp, int Print_datFile)
     for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
       OLP[ct_AN][h_AN] = (double**)malloc(sizeof(double*)*TNO1);
 
-      if (ct_AN==0){ 
+      if (ct_AN==0){
 	TNO2 = 1;
       }
-      else{ 
+      else{
 	Gh_AN = natn[ct_AN][h_AN];
 	TNO2 = Total_NumOrbs[Gh_AN];
       }
@@ -350,66 +378,104 @@ void Input( FILE *fp, int Print_datFile)
     }
   }
 
+  /* Added by N. Yamaguchi ***/
+#ifndef OLPPOLINEAR
+  if (version){
+    int direction, order;
+    OLPpo=(double******)malloc(sizeof(double*****)*3);
+    for (direction=0; direction<3; direction++){
+      OLPpo[direction]=(double*****)malloc(sizeof(double****)*order_max);
+      for (order=0; order<order_max; order++){
+	OLPpo[direction][order]=(double****)malloc(sizeof(double***)*(atomnum+1));
+	for (ct_AN=0; ct_AN<=atomnum; ct_AN++){
+	  TNO1 = Total_NumOrbs[ct_AN];
+	  OLPpo[direction][order][ct_AN] = (double***)malloc(sizeof(double**)*(FNAN[ct_AN]+1));
+	  for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
+	    OLPpo[direction][order][ct_AN][h_AN] = (double**)malloc(sizeof(double*)*TNO1);
 
-  OLPpox = (double****)malloc(sizeof(double***)*(atomnum+1));
-  for (ct_AN=0; ct_AN<=atomnum; ct_AN++){
-    TNO1 = Total_NumOrbs[ct_AN];
-    OLPpox[ct_AN] = (double***)malloc(sizeof(double**)*(FNAN[ct_AN]+1));
-    for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
-      OLPpox[ct_AN][h_AN] = (double**)malloc(sizeof(double*)*TNO1);
-
-      if (ct_AN==0){ 
-	TNO2 = 1;
-      }
-      else{ 
-	Gh_AN = natn[ct_AN][h_AN];
-	TNO2 = Total_NumOrbs[Gh_AN];
-      }
-      for (i=0; i<TNO1; i++){
-	OLPpox[ct_AN][h_AN][i] = (double*)malloc(sizeof(double)*TNO2);
+	    if (ct_AN==0){
+	      TNO2 = 1;
+	    }
+	    else{
+	      Gh_AN = natn[ct_AN][h_AN];
+	      TNO2 = Total_NumOrbs[Gh_AN];
+	    }
+	    for (i=0; i<TNO1; i++){
+	      OLPpo[direction][order][ct_AN][h_AN][i] = (double*)malloc(sizeof(double)*TNO2);
+	    }
+	  }
+	}
       }
     }
-  }
+  } else {
+#endif
+  /* ***/
 
-  OLPpoy = (double****)malloc(sizeof(double***)*(atomnum+1));
-  for (ct_AN=0; ct_AN<=atomnum; ct_AN++){
-    TNO1 = Total_NumOrbs[ct_AN];
-    OLPpoy[ct_AN] = (double***)malloc(sizeof(double**)*(FNAN[ct_AN]+1));
-    for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
-      OLPpoy[ct_AN][h_AN] = (double**)malloc(sizeof(double*)*TNO1);
+    OLPpox = (double****)malloc(sizeof(double***)*(atomnum+1));
+    for (ct_AN=0; ct_AN<=atomnum; ct_AN++){
+      TNO1 = Total_NumOrbs[ct_AN];
+      OLPpox[ct_AN] = (double***)malloc(sizeof(double**)*(FNAN[ct_AN]+1));
+      for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
+	OLPpox[ct_AN][h_AN] = (double**)malloc(sizeof(double*)*TNO1);
 
-      if (ct_AN==0){ 
-	TNO2 = 1;
-      }
-      else{ 
-	Gh_AN = natn[ct_AN][h_AN];
-	TNO2 = Total_NumOrbs[Gh_AN];
-      }
-      for (i=0; i<TNO1; i++){
-	OLPpoy[ct_AN][h_AN][i] = (double*)malloc(sizeof(double)*TNO2);
+	if (ct_AN==0){
+	  TNO2 = 1;
+	}
+	else{
+	  Gh_AN = natn[ct_AN][h_AN];
+	  TNO2 = Total_NumOrbs[Gh_AN];
+	}
+	for (i=0; i<TNO1; i++){
+	  OLPpox[ct_AN][h_AN][i] = (double*)malloc(sizeof(double)*TNO2);
+	}
       }
     }
-  }
 
-  OLPpoz = (double****)malloc(sizeof(double***)*(atomnum+1));
-  for (ct_AN=0; ct_AN<=atomnum; ct_AN++){
-    TNO1 = Total_NumOrbs[ct_AN];
-    OLPpoz[ct_AN] = (double***)malloc(sizeof(double**)*(FNAN[ct_AN]+1));
-    for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
-      OLPpoz[ct_AN][h_AN] = (double**)malloc(sizeof(double*)*TNO1);
+    OLPpoy = (double****)malloc(sizeof(double***)*(atomnum+1));
+    for (ct_AN=0; ct_AN<=atomnum; ct_AN++){
+      TNO1 = Total_NumOrbs[ct_AN];
+      OLPpoy[ct_AN] = (double***)malloc(sizeof(double**)*(FNAN[ct_AN]+1));
+      for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
+	OLPpoy[ct_AN][h_AN] = (double**)malloc(sizeof(double*)*TNO1);
 
-      if (ct_AN==0){ 
-	TNO2 = 1;
-      }
-      else{ 
-	Gh_AN = natn[ct_AN][h_AN];
-	TNO2 = Total_NumOrbs[Gh_AN];
-      }
-      for (i=0; i<TNO1; i++){
-	OLPpoz[ct_AN][h_AN][i] = (double*)malloc(sizeof(double)*TNO2);
+	if (ct_AN==0){
+	  TNO2 = 1;
+	}
+	else{
+	  Gh_AN = natn[ct_AN][h_AN];
+	  TNO2 = Total_NumOrbs[Gh_AN];
+	}
+	for (i=0; i<TNO1; i++){
+	  OLPpoy[ct_AN][h_AN][i] = (double*)malloc(sizeof(double)*TNO2);
+	}
       }
     }
+
+    OLPpoz = (double****)malloc(sizeof(double***)*(atomnum+1));
+    for (ct_AN=0; ct_AN<=atomnum; ct_AN++){
+      TNO1 = Total_NumOrbs[ct_AN];
+      OLPpoz[ct_AN] = (double***)malloc(sizeof(double**)*(FNAN[ct_AN]+1));
+      for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
+	OLPpoz[ct_AN][h_AN] = (double**)malloc(sizeof(double*)*TNO1);
+
+	if (ct_AN==0){
+	  TNO2 = 1;
+	}
+	else{
+	  Gh_AN = natn[ct_AN][h_AN];
+	  TNO2 = Total_NumOrbs[Gh_AN];
+	}
+	for (i=0; i<TNO1; i++){
+	  OLPpoz[ct_AN][h_AN][i] = (double*)malloc(sizeof(double)*TNO2);
+	}
+      }
+    }
+
+    /* Added by N. Yamaguchi ***/
+#ifndef OLPPOLINEAR
   }
+#endif
+  /* ***/
 
   DM = (double*****)malloc(sizeof(double****)*(SpinP_switch+1));
   for (spin=0; spin<=SpinP_switch; spin++){
@@ -491,49 +557,85 @@ and Hubbard U effective potential.
   }
 
   /****************************************************
-    Overlap matrix with position operator x
+    Overlap matrix with position operator
+    (added by N. Yamaguchi for HWC)
    ****************************************************/
 
-  for (ct_AN=1; ct_AN<=atomnum; ct_AN++){
-    TNO1 = Total_NumOrbs[ct_AN];
-    for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
-      Gh_AN = natn[ct_AN][h_AN];
-      TNO2 = Total_NumOrbs[Gh_AN];
-      for (i=0; i<TNO1; i++){
-	fread(OLPpox[ct_AN][h_AN][i],sizeof(double),TNO2,fp);
+  /* Added by N. Yamaguchi ***/
+#ifndef OLPPOLINEAR
+  if (version){
+    int direction, order;
+    for (direction=0; direction<3; direction++){
+      for (order=0; order<order_max; order++){
+	for (ct_AN=1; ct_AN<=atomnum; ct_AN++){
+	  TNO1 = Total_NumOrbs[ct_AN];
+	  for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
+	    Gh_AN = natn[ct_AN][h_AN];
+	    TNO2 = Total_NumOrbs[Gh_AN];
+	    for (i=0; i<TNO1; i++){
+	      fread(OLPpo[direction][order][ct_AN][h_AN][i],sizeof(double),TNO2,fp);
+
+	      /* Added by N. Yamaguchi ***/
+#ifdef DEBUG
+	      printf("<OLP> %d %d %f\n", order, direction, OLPpo[direction][order][ct_AN][h_AN][i][0]);
+#endif
+	      /* ***/
+
+	    }
+	  }
+	}
       }
     }
-  }
+  } else {
+#endif
+    /****************************************************
+      Overlap matrix with position operator x
+     ****************************************************/
 
-  /****************************************************
-    Overlap matrix with position operator y
-   ****************************************************/
-
-  for (ct_AN=1; ct_AN<=atomnum; ct_AN++){
-    TNO1 = Total_NumOrbs[ct_AN];
-    for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
-      Gh_AN = natn[ct_AN][h_AN];
-      TNO2 = Total_NumOrbs[Gh_AN];
-      for (i=0; i<TNO1; i++){
-	fread(OLPpoy[ct_AN][h_AN][i],sizeof(double),TNO2,fp);
+    for (ct_AN=1; ct_AN<=atomnum; ct_AN++){
+      TNO1 = Total_NumOrbs[ct_AN];
+      for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
+	Gh_AN = natn[ct_AN][h_AN];
+	TNO2 = Total_NumOrbs[Gh_AN];
+	for (i=0; i<TNO1; i++){
+	  fread(OLPpox[ct_AN][h_AN][i],sizeof(double),TNO2,fp);
+	}
       }
     }
-  }
 
-  /****************************************************
-    Overlap matrix with position operator z
-   ****************************************************/
+    /****************************************************
+      Overlap matrix with position operator y
+     ****************************************************/
 
-  for (ct_AN=1; ct_AN<=atomnum; ct_AN++){
-    TNO1 = Total_NumOrbs[ct_AN];
-    for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
-      Gh_AN = natn[ct_AN][h_AN];
-      TNO2 = Total_NumOrbs[Gh_AN];
-      for (i=0; i<TNO1; i++){
-	fread(OLPpoz[ct_AN][h_AN][i],sizeof(double),TNO2,fp);
+    for (ct_AN=1; ct_AN<=atomnum; ct_AN++){
+      TNO1 = Total_NumOrbs[ct_AN];
+      for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
+	Gh_AN = natn[ct_AN][h_AN];
+	TNO2 = Total_NumOrbs[Gh_AN];
+	for (i=0; i<TNO1; i++){
+	  fread(OLPpoy[ct_AN][h_AN][i],sizeof(double),TNO2,fp);
+	}
       }
     }
+
+    /****************************************************
+      Overlap matrix with position operator z
+     ****************************************************/
+
+    for (ct_AN=1; ct_AN<=atomnum; ct_AN++){
+      TNO1 = Total_NumOrbs[ct_AN];
+      for (h_AN=0; h_AN<=FNAN[ct_AN]; h_AN++){
+	Gh_AN = natn[ct_AN][h_AN];
+	TNO2 = Total_NumOrbs[Gh_AN];
+	for (i=0; i<TNO1; i++){
+	  fread(OLPpoz[ct_AN][h_AN][i],sizeof(double),TNO2,fp);
+	}
+      }
+    }
+#ifndef OLPPOLINEAR
   }
+#endif
+  /* ***/
 
   /****************************************************
     Density matrix
@@ -577,7 +679,16 @@ and Hubbard U effective potential.
   Total_SpinS = d_vec[9];
 
   /****************************************************
-    input file 
+    Core Charge (added by N. Yamaguchi for HWC)
+   ****************************************************/
+
+  if (version){
+    cc_vec = (double*)malloc(sizeof(double)*atomnum);
+    fread(cc_vec,sizeof(double),atomnum,fp);
+  }
+
+  /****************************************************
+    input file
    ****************************************************/
 
   fread(i_vec, sizeof(int), 1, fp);

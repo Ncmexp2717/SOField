@@ -104,7 +104,7 @@ double **atv;
 
 /*******************************************************
  int **atv_ijk;
-  i,j,and j number of periodically copied cells
+  i,j,and k number of periodically copied cells
   size: atv_ijk[TCpyCell+1][4];
 *******************************************************/
 int **atv_ijk;
@@ -212,14 +212,33 @@ double *****DM;
 double dipole_moment_core[4];
 
 /*******************************************************
+ int version; (added by N. Yamaguchi)
+*******************************************************/
+int version;
+
+/*******************************************************
+ int order_max; (added by N. Yamaguchi for HWC)
+*******************************************************/
+int order_max;
+
+/*******************************************************
+ double *cc_vec; (added by N. Yamaguchi for HWC)
+*******************************************************/
+double *cc_vec;
+
+/*******************************************************
+ double ******OLPpo; (added by N. Yamaguchi for HWC)
+*******************************************************/
+double ******OLPpo;
+
+/*******************************************************
  double dipole_moment_background[4];
 *******************************************************/
 double dipole_moment_background[4];
 
-
+#ifndef SOField
+void read_scfout(char *argv[]);
+#else
 void read_scfout(char *filename_wf, int Print_datFile);
-
-void free_scfout();
-
-
+#endif
 
