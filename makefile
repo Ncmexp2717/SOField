@@ -67,16 +67,16 @@ ADenBand.o: ADenBand.c Tools_BandCalc.h Inputtools.h read_scfout.h
 	$(CC) -c ADenBand.c
 
 
-FermiLoop: FermiLoop.o read_scfout.o Inputtools.o Tools_BandCalc.o GetOrbital.o EigenValue_Problem.o Eigen_HH.o 
+FermiLoop: FermiLoop.o read_scfout.o Inputtools.o Tools_BandCalc.o GetOrbital.o EigenValue_Problem.o Eigen_HH.o
 	$(CC) FermiLoop.o read_scfout.o Inputtools.o  Tools_BandCalc.o GetOrbital.o EigenValue_Problem.o Eigen_HH.o  $(LIB) -lm -o FermiLoop
 
 FermiLoop.o: FermiLoop.c read_scfout.h Inputtools.h EigenValue_Problem.h Eigen_HH.h Tools_BandCalc.h GetOrbital.h
-	$(CC) -c FermiLoop.c 
+	$(CC) -c FermiLoop.c -DSOField
 
 GridCalc: GridCalc.o read_scfout.o Inputtools.o Tools_BandCalc.o GetOrbital.o EigenValue_Problem.o Eigen_HH.o
-	$(CC) GridCalc.o read_scfout.o Inputtools.o  Tools_BandCalc.o GetOrbital.o EigenValue_Problem.o Eigen_HH.o  $(LIB) -lm -o GridCalc 
+	$(CC) GridCalc.o read_scfout.o Inputtools.o  Tools_BandCalc.o GetOrbital.o EigenValue_Problem.o Eigen_HH.o  $(LIB) -lm -o GridCalc
 
 GridCalc.o: GridCalc.c read_scfout.h Inputtools.h EigenValue_Problem.h Eigen_HH.h Tools_BandCalc.h GetOrbital.h
-	$(CC) -c GridCalc.c
+	$(CC) -c GridCalc.c -DSOField
 
 
